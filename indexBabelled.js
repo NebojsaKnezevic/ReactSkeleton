@@ -8,7 +8,6 @@ function _toPropertyKey(t) { var i = _toPrimitive(t, "string"); return "symbol" 
 function _toPrimitive(t, r) { if ("object" != _typeof(t) || !t) return t; var e = t[Symbol.toPrimitive]; if (void 0 !== e) { var i = e.call(t, r || "default"); if ("object" != _typeof(i)) return i; throw new TypeError("@@toPrimitive must return a primitive value."); } return ("string" === r ? String : Number)(t); }
 /** @jsx createElement */
 
-//Step I: The createElement Function
 function createElement(type, props) {
   for (var _len = arguments.length, children = new Array(_len > 2 ? _len - 2 : 0), _key = 2; _key < _len; _key++) {
     children[_key - 2] = arguments[_key];
@@ -31,10 +30,7 @@ function createTextElement(text) {
     }
   };
 }
-//Step I: The createElement Function
-
-//Step II: The render Function
-function render(element, container) {
+function createDom(fiber) {
   var dom = element.type == "TEXT_ELEMENT" ? document.createTextNode("") : document.createElement(element.type);
   var isProperty = function isProperty(key) {
     return key !== "children";
@@ -45,12 +41,16 @@ function render(element, container) {
   element.props.children.forEach(function (child) {
     render(child, dom);
   });
-  container.appendChild(dom);
+  return dom;
 }
-//Step II: The render Function
-
-//Step III: Concurrent Mode
-
+function render(element, container) {
+  nextUnitOfWork = {
+    dom: container,
+    props: {
+      children: [element]
+    }
+  };
+}
 var nextUnitOfWork = null;
 function workLoop(deadline) {
   var shouldYield = false;
@@ -60,10 +60,46 @@ function workLoop(deadline) {
   }
   requestIdleCallback(workLoop);
 }
-function performUnitOfWork() {}
+function performUnitOfWork(fiber) {
+  // TODO add dom node
+  if (!fiber.dom) {
+    fiber.dom = createDom(fiber);
+  }
+  if (fiber.parent) {
+    fiber.parent.dom.appendChild(fiber.dom);
+  }
+  // TODO create new fibers
+  var elements = fiber.props.children;
+  var index = 0;
+  var prevSibling = null;
+  while (index < elements.length) {
+    var _element = elements[index];
+    var newFiber = {
+      type: _element.type,
+      props: _element.props,
+      parent: fiber,
+      dom: null
+    };
+    if (index === 0) {
+      fiber.child = newFiber;
+    } else {
+      prevSibling.sibling = newFiber;
+    }
+    prevSibling = newFiber;
+    index++;
+  }
+  // TODO return next unit of work
 
-//Step III: Concurrent Mode
-
+  if (fiber.child) {
+    return fiber.child;
+  }
+  while (nextFiber) {
+    if (nextFiber.sibling) {
+      return nextFiber.sibling;
+    }
+    nextFiber = nextFiber.parent;
+  }
+}
 var reactLight = {
   createElement: createElement,
   render: render
